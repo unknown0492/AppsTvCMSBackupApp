@@ -1,0 +1,15 @@
+{
+	"hotel_id":"1",
+    "hotel_name":"Hotel Name",
+    "xampp_backup_dir_path":"I:\xampp",
+    "to_backup_dir_path":"I:\\appstv_backups",
+    "from_backup_dir_path":"C:\xampp\htdocs\7on7",
+    "db_backup_dir_path":"I:\database_backups",
+    "backup_frequency":"5",
+    "support_email":"sohail@excel.com.sg",
+    "url_webservice":"http://192.168.1.45/excel_erp/webservice.php",
+    "db_name":"appstv2",
+    "db_backups_count":"5",
+    "appstv_backups_count":"3",
+    "db_has_password":"no"
+}

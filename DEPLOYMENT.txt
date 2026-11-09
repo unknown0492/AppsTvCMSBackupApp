@@ -1,0 +1,41 @@
+AppsTV CMS Backup v2 - installation on a hotel CMS PC (Windows 7 or later)
+==========================================================================
+
+Requirements
+  - Java 8 update 141 or newer (needed for HTTPS to the cloud). If the PC has an older Java 8,
+    either update it or set url_webservice to http://... in config.
+  - Backup thumb drive formatted NTFS or exFAT (FAT32 cannot hold zips larger than 4 GB).
+
+1. Copy dist\AppsTvCMSBackup.jar, dist\lib\ and config to e.g. C:\AppsTvCMSBackup\
+
+2. Edit config (use forward slashes in paths):
+     hotel_id        -> the hotel's id in excel-erp (cms_backup_hotel_sites.id)
+     hotel_name      -> display name
+     backup_drive    -> usual thumb drive letter, e.g. "I:"
+     cms_source_dir  -> e.g. "C:/xampp/htdocs/7on7"
+     db_password     -> MySQL root password ("" if none)
+
+3. Open an Administrator command prompt in C:\AppsTvCMSBackup and run:
+
+     java -jar AppsTvCMSBackup.jar --init-drive I:     (marks the thumb drive for this hotel)
+     java -jar AppsTvCMSBackup.jar --force             (first backup now - check the output)
+     java -jar AppsTvCMSBackup.jar --install-task      (daily at schedule_time + 10 min after boot)
+
+4. Remove the old v1 scheduled task / startup shortcut so only v2 runs.
+
+Files the app creates next to the jar
+  logs\backup_yyyy-MM.log   full log of every run (kept 12 months)
+  outbox\*.json             reports not yet confirmed by the cloud (resent automatically)
+
+On the thumb drive
+  appstv_backup.id                               marker that identifies this hotel's drive
+  database_backups\appstv2_yyyy-MM-dd_HHmmss.sql.gz (+ .sha256)
+  appstv_backups\cms_yyyy-MM-dd_HHmmss.zip          (+ .sha256)
+  A file without a .sha256 next to it was never verified and is not counted as a backup.
+
+Restore
+  Database: gunzip the .sql.gz, then  mysql -u root appstv2 < appstv2_....sql
+  CMS:      extract the zip; it contains the source folder (e.g. 7on7\...)
+
+Exit codes (shown as "Last Run Result" in Task Scheduler)
+  0 = OK   1 = completed with warnings   2 = a backup failed   3 = already running

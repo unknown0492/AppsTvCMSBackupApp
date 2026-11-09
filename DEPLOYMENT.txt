@@ -12,6 +12,7 @@ Install (recommended)
   3. Answer the questions. install.bat:
        - installs Java 8 (Eclipse Temurin) when Java 8u141+ is missing; offline: put the Temurin 8
          JRE .msi next to install.bat
+       - stops, disables and deletes the previous "AppsTV CMS Backup" task and says whether it was removed
        - copies the app to C:\AppsTvCMSBackupApp and verifies it
        - asks hotel id, hotel name, CMS folder, MySQL folder/database/login (tested), backup drive,
          daily time; required values cannot be skipped

@@ -6,12 +6,14 @@ rem  1. Gets administrator rights
 rem  2. Checks Java (needs Java 8 update 141+ or newer); downloads and installs
 rem     Eclipse Temurin 8 when missing or too old. For PCs without internet,
 rem     put OpenJDK8U-jre_x64_windows_*.msi (or _x86-32_) next to this file.
-rem  3. Copies the app to C:\AppsTvCMSBackupApp and verifies the copy
-rem  4. Asks for the configuration, one value at a time (required values
+rem  3. Stops, disables and deletes the previously installed scheduled task
+rem     "AppsTV CMS Backup" and reports whether it was removed
+rem  4. Copies the app to C:\AppsTvCMSBackupApp and verifies the copy
+rem  5. Asks for the configuration, one value at a time (required values
 rem     cannot be skipped; folders, MySQL login and drive are tested)
-rem  5. Runs the first backup
-rem  6. Checks / creates / re-checks the Windows scheduled task
-rem  7. Puts an "AppsTV Backup Manager" shortcut on the desktop
+rem  6. Runs the first backup
+rem  7. Checks / creates / re-checks the Windows scheduled task
+rem  8. Puts an "AppsTV Backup Manager" shortcut on the desktop
 rem ==========================================================================
 setlocal EnableExtensions DisableDelayedExpansion
 title AppsTV CMS Backup - Installer
@@ -60,7 +62,7 @@ goto :fail
 :pkgok
 
 rem ---------------------------------------------------------------- step 1: Java
-echo [1/6] Checking Java...
+echo [1/7] Checking Java...
 call :findjava
 if defined JAVA_EXE goto :javaok
 echo   Java 8 update 141 or newer was not found. Installing Eclipse Temurin Java 8...
@@ -73,9 +75,16 @@ goto :fail
 :javaok
 echo   Using Java %JV%: %JAVA_EXE%
 
-rem ---------------------------------------------------------------- step 2: copy files
+rem ---------------------------------------------------------------- step 2: remove previous task
 echo.
-echo [2/6] Copying the application to %APP% ...
+echo [2/7] Removing the previously installed scheduled task
+rem Set to 1 by :removetask when the old task was deleted (used by :fail to warn that no task exists now)
+set "TASKREMOVED="
+call :removetask
+
+rem ---------------------------------------------------------------- step 3: copy files
+echo.
+echo [3/7] Copying the application to %APP% ...
 if /i "%SRC%"=="%APP%\" (
     echo   Installer is already running from %APP% - nothing to copy.
     goto :copied
@@ -104,9 +113,9 @@ echo   Files copied and verified.
 rem Remember which Java to use (manage.bat reads this)
 > "%APP%\java_path.txt" echo %JAVA_EXE%
 
-rem ---------------------------------------------------------------- step 3: configuration
+rem ---------------------------------------------------------------- step 4: configuration
 echo.
-echo [3/6] Configuration
+echo [4/7] Configuration
 if not exist "%APP%\config" goto :wizard
 "%JAVA_EXE%" -jar "%APP%\%JAR%" --show-config
 if errorlevel 1 goto :wizard
@@ -124,9 +133,9 @@ if errorlevel 2 goto :fail
 goto :wizard
 :configured
 
-rem ---------------------------------------------------------------- step 4: first backup
+rem ---------------------------------------------------------------- step 5: first backup
 echo.
-echo [4/6] First backup
+echo [5/7] First backup
 choice /c YN /m "Run a full backup now? Recommended - it proves everything works (takes a few minutes)"
 if errorlevel 2 goto :task
 "%JAVA_EXE%" -jar "%APP%\%JAR%" --force
@@ -138,15 +147,15 @@ if "%RC%"=="2" echo   FIRST BACKUP FAILED - read the ERROR lines above. Fix the 
 if "%RC%"=="3" echo   Another backup was already running - skipped.
 pause
 
-rem ---------------------------------------------------------------- step 5: scheduled task
+rem ---------------------------------------------------------------- step 6: scheduled task
 :task
 echo.
-echo [5/6] Windows scheduled task
+echo [6/7] Windows scheduled task
 schtasks /Query /TN "%TASK%" >nul 2>&1
 if errorlevel 1 (
-    echo   The task "%TASK%" does not exist yet - creating it now...
+    echo   Creating a new task "%TASK%"...
 ) else (
-    echo   The task "%TASK%" already exists - updating it to use this installation...
+    echo   The old task "%TASK%" could not be removed in step 2 - overwriting it with this installation...
 )
 "%JAVA_EXE%" -jar "%APP%\%JAR%" --install-task
 call :checktask
@@ -155,9 +164,9 @@ echo   OK: the task exists and runs %APP%\%JAR%
 schtasks /Query /TN "%TASK%" /FO LIST > "%TMPF%_task.txt" 2>nul
 type "%TMPF%_task.txt" | findstr /i /c:"Next Run Time" /c:"Status"
 
-rem ---------------------------------------------------------------- step 6: shortcut + old version
+rem ---------------------------------------------------------------- step 7: shortcut + old version
 echo.
-echo [6/6] Finishing
+echo [7/7] Finishing
 set "LNK=%PUBLIC%\Desktop\AppsTV Backup Manager.lnk"
 if not defined PUBLIC set "LNK=%USERPROFILE%\Desktop\AppsTV Backup Manager.lnk"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%LNK%'); $s.TargetPath='%APP%\manage.bat'; $s.WorkingDirectory='%APP%'; $s.Description='Run, configure and schedule the AppsTV CMS backup'; $s.Save()" >nul 2>&1
@@ -189,6 +198,10 @@ goto :fail
 :fail
 echo.
 echo Installation NOT completed.
+if defined TASKREMOVED (
+    echo WARNING: the previous scheduled task was removed in step 2 and no new one was created,
+    echo          so NO automatic backups will run until install.bat is run again successfully.
+)
 pause
 exit /b 1
 
@@ -300,6 +313,38 @@ for %%A in ("%MSI%") do if %%~zA LSS 5000000 (
     exit /b 1
 )
 exit /b 0
+
+:removetask
+rem Stops, disables and deletes the previously installed task "%TASK%" and tells the user the outcome.
+rem Sets TASKREMOVED=1 when it was deleted. Never fails the installation: step 6 overwrites a task that survives.
+schtasks /Query /TN "%TASK%" >nul 2>&1
+if errorlevel 1 (
+    echo   No previous "%TASK%" task found - nothing to remove.
+    goto :eof
+)
+echo   Found the previous task "%TASK%". Stopping, disabling and deleting it...
+rem Stop a backup the task is running right now (also releases the jar for the copy step)
+schtasks /End /TN "%TASK%" >nul 2>&1
+rem Disable first, so it cannot start again even if the delete below fails
+schtasks /Change /TN "%TASK%" /DISABLE >nul 2>&1
+rem Remember whether disabling worked (0 = disabled)
+set "DISRC=%errorlevel%"
+schtasks /Delete /TN "%TASK%" /F >nul 2>&1
+rem Re-query instead of trusting the delete exit code
+schtasks /Query /TN "%TASK%" >nul 2>&1
+if errorlevel 1 (
+    set "TASKREMOVED=1"
+    echo   REMOVED: the previous task was stopped and deleted. A new one is created in step 6.
+    goto :eof
+)
+echo   NOT REMOVED: the previous task "%TASK%" could not be deleted.
+if "%DISRC%"=="0" (
+    echo   It was DISABLED, so it will not run. Step 6 will overwrite it with the new settings.
+) else (
+    echo   It could not be disabled either. Step 6 will try to overwrite it; if that also fails,
+    echo   delete it by hand in Task Scheduler ^(taskschd.msc^).
+)
+goto :eof
 
 :checktask
 rem Succeeds when the task exists and runs the jar of this installation

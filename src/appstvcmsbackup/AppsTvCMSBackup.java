@@ -28,6 +28,8 @@ import java.util.List;
  *                java -jar AppsTvCMSBackup.jar --init-drive I: mark a thumb drive as this hotel's backup drive
  *                java -jar AppsTvCMSBackup.jar --install-task  create/replace the Windows scheduled task
  *                java -jar AppsTvCMSBackup.jar --test-report   send a test report to the cloud
+ *                java -jar AppsTvCMSBackup.jar --configure [steps]  interactive setup (steps: hotel cms database drive schedule cloud)
+ *                java -jar AppsTvCMSBackup.jar --show-config   show the configuration, drive status and newest backups
  *
  *              Exit codes: 0 = OK, 1 = completed with warnings, 2 = a backup failed, 3 = already running.
  * @author Sohail
@@ -45,7 +47,21 @@ public class AppsTvCMSBackup {
      * @return void
      */
     public static void main( String[] args ) {
-        System.exit( run( Arrays.asList( args ) ) );
+        List<String> a = Arrays.asList( args ); // Arguments as a list
+        // Interactive commands: no lock, no config validation up front (the config may not exist yet)
+        if ( a.contains( "--configure" ) ) {
+            List<String> steps = new ArrayList<String>(); // Steps named after --configure
+            for ( String s : a.subList( a.indexOf( "--configure" ) + 1, a.size() ) ) {
+                if ( !s.startsWith( "--" ) ) {
+                    steps.add( s.toLowerCase() );
+                }
+            }
+            System.exit( ConfigWizard.configure( resolveAppDir(), steps ) );
+        }
+        if ( a.contains( "--show-config" ) ) {
+            System.exit( ConfigWizard.show( resolveAppDir() ) );
+        }
+        System.exit( run( a ) );
     }
 
     /**
@@ -262,13 +278,26 @@ public class AppsTvCMSBackup {
                 Log.error( "--install-task must be run from the built jar (dist/AppsTvCMSBackup.jar)", null );
                 return false;
             }
-            // Oracle's update-proof shim: always points at the current Java, so the task survives Java auto-updates
-            // (the versioned folder such as jre1.8.0_321 is deleted when Java updates)
-            File javaw = new File( System.getenv( "ProgramData" ) == null ? "C:\\ProgramData" : System.getenv( "ProgramData" ),
-                    "Oracle\\Java\\javapath\\javaw.exe" ); // Windowless Java
-            if ( !javaw.isFile() ) {
-                javaw = new File( System.getProperty( "java.home" ), "bin" + File.separator + "javaw.exe" );
-                Log.warn( "Java shim not found; task uses " + javaw + " - re-run --install-task after a Java update" );
+            // Oracle's update-proof shim survives Java auto-updates (the versioned folder such as jre1.8.0_321 is
+            // deleted when Oracle Java updates itself). Temurin does not auto-update, so its own path is stable.
+            // The shim always points at the newest Oracle Java, so it is only used when we are running on Oracle Java
+            File javaw = new File( System.getProperty( "java.home" ), "bin" + File.separator + "javaw.exe" ); // Windowless Java (this JVM)
+            boolean oracle = System.getProperty( "java.vendor", "" ).toLowerCase().contains( "oracle" ); // Oracle auto-updating JRE
+            String[] shims = {
+                ( System.getenv( "ProgramData" ) == null ? "C:\\ProgramData" : System.getenv( "ProgramData" ) ) + "\\Oracle\\Java\\javapath\\javaw.exe",
+                ( System.getenv( "CommonProgramFiles" ) == null ? "C:\\Program Files\\Common Files" : System.getenv( "CommonProgramFiles" ) )
+                        + "\\Oracle\\Java\\javapath\\javaw.exe"
+            }; // Known shim locations (older and newer Oracle installers)
+            boolean shimUsed = false; // True when a shim was chosen
+            for ( String s : shims ) {
+                if ( oracle && new File( s ).isFile() ) {
+                    javaw = new File( s );
+                    shimUsed = true;
+                    break;
+                }
+            }
+            if ( !shimUsed ) {
+                Log.info( "Task uses " + javaw + " - re-run --install-task if this Java is ever uninstalled or moved" );
             }
             String xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n"
                     + "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n"

@@ -10,6 +10,17 @@
 <project name="AppsTvCMSBackup" default="default" basedir=".">
     <description>Builds, tests, and runs the project AppsTvCMSBackup.</description>
     <import file="nbproject/build-impl.xml"/>
+
+    <!-- After the jar is built, turn dist\ into the complete installer package:
+         dist\install.bat, manage.bat, config (template), the setup guide, AppsTvCMSBackup.jar and lib\.
+         Copy the whole dist folder to the hotel PC and run install.bat. -->
+    <target name="-post-jar">
+        <copy todir="${dist.dir}" overwrite="true">
+            <fileset dir="installer" includes="*.bat"/>
+            <fileset dir="." includes="config,AppsTV_CMS_Backup_Setup_Guide.docx"/>
+        </copy>
+        <delete file="${dist.dir}/README.TXT" quiet="true"/>
+    </target>
     <!--
 
     There exist several targets which are by default empty and which can be 

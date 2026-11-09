@@ -1,12 +1,12 @@
 {
-    "hotel_id": "1",
-    "hotel_name": "Hotel Name",
+    "hotel_id": "",
+    "hotel_name": "",
 
-    "backup_drive": "I:",
+    "backup_drive": "",
     "cms_backup_folder": "appstv_backups",
     "db_backup_folder": "database_backups",
 
-    "cms_source_dir": "C:/xampp/htdocs/7on7",
+    "cms_source_dir": "",
     "cms_backup_frequency_days": 5,
     "cms_backups_count": 3,
     "db_backups_count": 5,

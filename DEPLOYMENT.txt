@@ -1,31 +1,41 @@
 AppsTV CMS Backup v2 - installation on a hotel CMS PC (Windows 7 or later)
 ==========================================================================
+Full illustrated guide: AppsTV_CMS_Backup_Setup_Guide.docx
 
-Requirements
-  - Java 8 update 141 or newer (needed for HTTPS to the cloud). If the PC has an older Java 8,
-    either update it or set url_webservice to http://... in config.
-  - Backup thumb drive formatted NTFS or exFAT (FAT32 cannot hold zips larger than 4 GB).
+Build the installer package
+  NetBeans: Clean and Build. The dist\ folder is then the complete package:
+    install.bat, manage.bat, AppsTvCMSBackup.jar, lib\, config (template), setup guide.
 
-1. Copy dist\AppsTvCMSBackup.jar, dist\lib\ and config to e.g. C:\AppsTvCMSBackup\
+Install (recommended)
+  1. Plug in the backup thumb drive (format it NTFS or exFAT first; FAT32 cannot hold zips over 4 GB).
+  2. Copy the dist folder to the PC and double-click install.bat (click Yes for administrator rights).
+  3. Answer the questions. install.bat:
+       - installs Java 8 (Eclipse Temurin) when Java 8u141+ is missing; offline: put the Temurin 8
+         JRE .msi next to install.bat
+       - copies the app to C:\AppsTvCMSBackupApp and verifies it
+       - asks hotel id, hotel name, CMS folder, MySQL folder/database/login (tested), backup drive,
+         daily time; required values cannot be skipped
+       - runs the first full backup
+       - checks / creates / re-checks the scheduled task "AppsTV CMS Backup"
+       - adds the "AppsTV Backup Manager" desktop shortcut and offers to delete old v1 tasks
+  Running install.bat again upgrades the program and keeps the configuration.
 
-2. Edit config (use forward slashes in paths):
-     hotel_id        -> the hotel's id in excel-erp (cms_backup_hotel_sites.id)
-     hotel_name      -> display name
-     backup_drive    -> usual thumb drive letter, e.g. "I:"
-     cms_source_dir  -> e.g. "C:/xampp/htdocs/7on7"
-     db_password     -> MySQL root password ("" if none)
+Day to day: "AppsTV Backup Manager" (C:\AppsTvCMSBackupApp\manage.bat)
+  1 run backup  2 full backup  3 view config/status  4 change config  5 change thumb drive
+  6 change daily time  7 task status  8 re-create task  9 open log
 
-3. Open an Administrator command prompt in C:\AppsTvCMSBackup and run:
-
-     java -jar AppsTvCMSBackup.jar --init-drive I:     (marks the thumb drive for this hotel)
-     java -jar AppsTvCMSBackup.jar --force             (first backup now - check the output)
-     java -jar AppsTvCMSBackup.jar --install-task      (daily at schedule_time + 10 min after boot)
-
-4. Remove the old v1 scheduled task / startup shortcut so only v2 runs.
+Manual commands (Administrator command prompt in C:\AppsTvCMSBackupApp)
+  java -jar AppsTvCMSBackup.jar --configure [hotel cms database drive schedule cloud]
+  java -jar AppsTvCMSBackup.jar --show-config
+  java -jar AppsTvCMSBackup.jar --init-drive I:
+  java -jar AppsTvCMSBackup.jar --force
+  java -jar AppsTvCMSBackup.jar --install-task
 
 Files the app creates next to the jar
   logs\backup_yyyy-MM.log   full log of every run (kept 12 months)
   outbox\*.json             reports not yet confirmed by the cloud (resent automatically)
+  config.bak                previous config (written by --configure)
+  java_path.txt             Java chosen by install.bat
 
 On the thumb drive
   appstv_backup.id                               marker that identifies this hotel's drive
@@ -34,8 +44,8 @@ On the thumb drive
   A file without a .sha256 next to it was never verified and is not counted as a backup.
 
 Restore
-  Database: gunzip the .sql.gz, then  mysql -u root appstv2 < appstv2_....sql
-  CMS:      extract the zip; it contains the source folder (e.g. 7on7\...)
+  Database: gunzip the .sql.gz, then  mysql -u root -p appstv2 < appstv2_....sql
+  CMS:      extract the zip; it contains the source folder (e.g. appstv2\...)
 
 Exit codes (shown as "Last Run Result" in Task Scheduler)
   0 = OK   1 = completed with warnings   2 = a backup failed   3 = already running

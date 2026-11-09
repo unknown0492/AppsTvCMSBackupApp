@@ -70,6 +70,19 @@ public class Config {
      * @throws BackupException listing every problem found
      */
     public static Config load( File file ) throws BackupException {
+        JSONObject json = readRaw( file ); // Parsed config
+
+        Config c = new Config(); // Result being built
+        return c.fill( json, file );
+    }
+
+    /**
+     * @description Reads and parses the config file without validating values (used by the setup wizard)
+     * @param file The config file
+     * @return JSONObject raw key/values
+     * @throws BackupException when the file is missing, unreadable or not a JSON object
+     */
+    static JSONObject readRaw( File file ) throws BackupException {
         if ( !file.isFile() ) {
             throw new BackupException( "Config file not found: " + file.getAbsolutePath() );
         }
@@ -87,8 +100,18 @@ public class Config {
         } catch ( ClassCastException e ) {
             throw new BackupException( "Config file must contain a JSON object { ... }" );
         }
+        return json;
+    }
 
-        Config c = new Config(); // Result being built
+    /**
+     * @description Copies and validates every value from the parsed JSON into this object
+     * @param json Parsed config
+     * @param file Config file (for the error message)
+     * @return Config this, validated
+     * @throws BackupException listing every problem found
+     */
+    private Config fill( JSONObject json, File file ) throws BackupException {
+        Config c = this; // Object being filled
         c.hotelId = c.str( json, "hotel_id", null );
         c.hotelName = c.str( json, "hotel_name", null );
         c.backupRoot = c.path( json, "backup_drive", null );

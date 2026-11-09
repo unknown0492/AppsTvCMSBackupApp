@@ -163,6 +163,39 @@ public final class DatabaseBackup {
     }
 
     /**
+     * @description Tests a MySQL login (used by the setup wizard): connects with the given host/port/user/password
+     *              and counts the base tables of db_name
+     * @param cfg Configuration holding mysqlBinDir, dbHost, dbPort, dbUser, dbPassword and dbName
+     * @return String[] {"ok", tableCount} or {"error", mysql error text}
+     */
+    static String[] probeLogin( Config cfg ) {
+        File cnf = null; // Temporary credentials file
+        try {
+            cnf = writeCredentialsFile( cfg );
+            List<String> cmd = new ArrayList<String>(); // mysql command line
+            cmd.add( new File( cfg.mysqlBinDir, "mysql.exe" ).getAbsolutePath() );
+            cmd.add( "--defaults-extra-file=" + cnf.getAbsolutePath() );
+            cmd.add( "--connect-timeout=10" );
+            cmd.add( "-N" );
+            cmd.add( "-B" );
+            cmd.add( "-e" );
+            cmd.add( "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '" + cfg.dbName
+                    + "' AND TABLE_TYPE = 'BASE TABLE'" ); // db_name is validated by the caller
+            String[] out = runCapture( cmd, 60 ); // {exitCode, stdout, stderr}
+            if ( "0".equals( out[ 0 ] ) ) {
+                return new String[]{ "ok", out[ 1 ].trim() };
+            }
+            return new String[]{ "error", out[ 2 ].trim() };
+        } catch ( Exception e ) {
+            return new String[]{ "error", e.getMessage() == null ? e.toString() : e.getMessage() };
+        } finally {
+            if ( cnf != null ) {
+                cnf.delete();
+            }
+        }
+    }
+
+    /**
      * @description Writes a temporary MySQL option file so the password never appears on the command line
      * @param cfg Configuration
      * @return File the option file (caller deletes it)

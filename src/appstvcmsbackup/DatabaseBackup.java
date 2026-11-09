@@ -9,9 +9,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -43,12 +43,13 @@ public final class DatabaseBackup {
     }
 
     /**
-     * @description Regex matching this app's verified dump names, e.g. appstv2_2026-11-08_020000.sql.gz
+     * @description Regex matching this app's verified dump names, e.g. appstv2_08-11-2026_020000.sql.gz
+     *              (earlier appstv2_2026-11-08_020000.sql.gz names are matched too, so they are still rotated out)
      * @param cfg Configuration
      * @return Pattern
      */
     public static Pattern namePattern( Config cfg ) {
-        return Pattern.compile( Pattern.quote( cfg.dbName ) + "_\\d{4}-\\d{2}-\\d{2}_\\d{6}\\.sql\\.gz" );
+        return Pattern.compile( Pattern.quote( cfg.dbName ) + "_" + Retention.STAMP_REGEX + "\\.sql\\.gz" );
     }
 
     /**
@@ -71,11 +72,12 @@ public final class DatabaseBackup {
         File cnf = null; // Temporary MySQL credentials file
         File partial = null; // Dump being written
         try {
-            String today = new SimpleDateFormat( "yyyy-MM-dd" ).format( new Date() ); // Date part of the file name
+            LocalDate today = LocalDate.now(); // Today's date
             List<File> existing = Retention.verifiedBackups( dir, namePattern( cfg ) ); // Previous verified dumps
             if ( !force ) {
                 for ( File f : existing ) {
-                    if ( f.getName().startsWith( cfg.dbName + "_" + today + "_" ) ) {
+                    LocalDateTime stamp = Retention.stampOf( f.getName() ); // When that dump was taken
+                    if ( stamp != null && stamp.toLocalDate().equals( today ) ) {
                         return res.skip( "Database already backed up today (" + f.getName() + ")" );
                     }
                 }
@@ -105,7 +107,7 @@ public final class DatabaseBackup {
             }
 
             // 3. Dump straight into a gzip .partial file
-            String stamp = new SimpleDateFormat( "yyyy-MM-dd_HHmmss" ).format( new Date( res.startedAt ) ); // Timestamp in the name
+            String stamp = Retention.nameStamp( res.startedAt ); // Timestamp in the name: dd-MM-yyyy_HHmmss
             String finalName = cfg.dbName + "_" + stamp + ".sql.gz"; // Name after verification
             partial = new File( dir, finalName + FileUtil.PARTIAL_SUFFIX );
             Log.info( "Dumping database '" + cfg.dbName + "' (" + expectedTables + " tables, ~" + FileUtil.human( stats[ 1 ] ) + ") to " + partial );

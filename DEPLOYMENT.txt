@@ -39,8 +39,8 @@ Files the app creates next to the jar
 
 On the thumb drive
   appstv_backup.id                               marker that identifies this hotel's drive
-  database_backups\appstv2_yyyy-MM-dd_HHmmss.sql.gz (+ .sha256)
-  appstv_backups\cms_yyyy-MM-dd_HHmmss.zip          (+ .sha256)
+  database_backups\appstv2_dd-MM-yyyy_HHmmss.sql.gz (+ .sha256)
+  appstv_backups\cms_dd-MM-yyyy_HHmmss.zip          (+ .sha256)
   A file without a .sha256 next to it was never verified and is not counted as a backup.
 
 Restore

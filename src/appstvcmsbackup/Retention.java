@@ -1,9 +1,13 @@
 package appstvcmsbackup;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -15,6 +19,15 @@ import java.util.regex.Pattern;
  * @author Sohail
  */
 public final class Retention {
+
+    /** Timestamp format used in backup file names, e.g. 09-11-2026_171545 */
+    public static final String NAME_STAMP = "dd-MM-yyyy_HHmmss";
+    /** Regex for the timestamp part of a backup name: current dd-MM-yyyy or earlier yyyy-MM-dd form */
+    public static final String STAMP_REGEX = "(?:\\d{2}-\\d{2}-\\d{4}|\\d{4}-\\d{2}-\\d{2})_\\d{6}";
+    // Current name timestamp: dd-MM-yyyy_HHmmss
+    private static final Pattern DMY = Pattern.compile( "(?<!\\d)(\\d{2})-(\\d{2})-(\\d{4})_(\\d{2})(\\d{2})(\\d{2})(?!\\d)" );
+    // Earlier name timestamp: yyyy-MM-dd_HHmmss
+    private static final Pattern YMD = Pattern.compile( "(?<!\\d)(\\d{4})-(\\d{2})-(\\d{2})_(\\d{2})(\\d{2})(\\d{2})(?!\\d)" );
 
     /**
      * @description Prevents instantiation
@@ -47,8 +60,42 @@ public final class Retention {
     }
 
     /**
+     * @description Formats a backup timestamp for file names: dd-MM-yyyy_HHmmss (e.g. 09-11-2026_171545)
+     * @param millis Time in milliseconds
+     * @return String timestamp for the file name
+     */
+    public static String nameStamp( long millis ) {
+        return new SimpleDateFormat( NAME_STAMP ).format( new Date( millis ) );
+    }
+
+    /**
+     * @description Reads the date and time embedded in a backup file name. Understands the current
+     *              dd-MM-yyyy_HHmmss names and the earlier yyyy-MM-dd_HHmmss ones, so older backups are
+     *              still counted and rotated out.
+     * @param name Backup file name
+     * @return LocalDateTime embedded timestamp, or null when the name has none
+     */
+    public static LocalDateTime stampOf( String name ) {
+        try {
+            Matcher m = DMY.matcher( name ); // Current names
+            if ( m.find() ) {
+                return LocalDateTime.of( Integer.parseInt( m.group( 3 ) ), Integer.parseInt( m.group( 2 ) ), Integer.parseInt( m.group( 1 ) ),
+                        Integer.parseInt( m.group( 4 ) ), Integer.parseInt( m.group( 5 ) ), Integer.parseInt( m.group( 6 ) ) );
+            }
+            m = YMD.matcher( name ); // Earlier names
+            if ( m.find() ) {
+                return LocalDateTime.of( Integer.parseInt( m.group( 1 ) ), Integer.parseInt( m.group( 2 ) ), Integer.parseInt( m.group( 3 ) ),
+                        Integer.parseInt( m.group( 4 ) ), Integer.parseInt( m.group( 5 ) ), Integer.parseInt( m.group( 6 ) ) );
+            }
+        } catch ( Exception e ) {
+            // Impossible date such as 31-02-2026: treated as having no timestamp
+        }
+        return null;
+    }
+
+    /**
      * @description Lists verified backups (name matches pattern and a .sha256 file exists), newest first.
-     *              Backup names embed yyyy-MM-dd_HHmmss, so name order equals date order.
+     *              Sorted by the timestamp inside the name (dd-MM-yyyy names do not sort by date as text).
      * @param dir     Backup folder
      * @param pattern Regex the backup file name must match fully
      * @return List of File, newest first
@@ -65,7 +112,14 @@ public final class Retention {
                 out.add( f );
             }
         }
-        Collections.sort( out, ( a, b ) -> b.getName().compareTo( a.getName() ) );
+        Collections.sort( out, ( a, b ) -> {
+            LocalDateTime ta = stampOf( a.getName() ); // Timestamp of a
+            LocalDateTime tb = stampOf( b.getName() ); // Timestamp of b
+            if ( ta != null && tb != null && !ta.equals( tb ) ) {
+                return tb.compareTo( ta );
+            }
+            return b.getName().compareTo( a.getName() );
+        } );
         return out;
     }
 

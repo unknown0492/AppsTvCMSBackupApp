@@ -11,20 +11,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
+
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
+
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -56,11 +56,12 @@ public final class CmsBackup {
     }
 
     /**
-     * @description Regex matching this app's verified CMS zips, e.g. cms_2026-11-08_020000.zip
+     * @description Regex matching this app's verified CMS zips, e.g. cms_08-11-2026_020000.zip
+     *              (earlier cms_2026-11-08_020000.zip names are matched too, so they are still rotated out)
      * @return Pattern
      */
     public static Pattern namePattern() {
-        return Pattern.compile( "cms_(\\d{4}-\\d{2}-\\d{2})_\\d{6}\\.zip" );
+        return Pattern.compile( "cms_" + Retention.STAMP_REGEX + "\\.zip" );
     }
 
     /**
@@ -84,11 +85,11 @@ public final class CmsBackup {
         if ( backups.isEmpty() ) {
             return null;
         }
-        Matcher m = namePattern().matcher( backups.get( 0 ).getName() ); // Extracts the date
-        if ( !m.matches() ) {
+        LocalDateTime stamp = Retention.stampOf( backups.get( 0 ).getName() ); // When the newest zip was taken
+        if ( stamp == null ) {
             return null;
         }
-        long age = ChronoUnit.DAYS.between( LocalDate.parse( m.group( 1 ) ), LocalDate.now() ); // Days since newest backup
+        long age = ChronoUnit.DAYS.between( stamp.toLocalDate(), LocalDate.now() ); // Days since newest backup
         if ( age >= cfg.cmsFrequencyDays ) {
             return null;
         }
@@ -138,7 +139,7 @@ public final class CmsBackup {
             }
 
             // 3. Write the zip
-            String stamp = new SimpleDateFormat( "yyyy-MM-dd_HHmmss" ).format( new Date( res.startedAt ) ); // Timestamp in the name
+            String stamp = Retention.nameStamp( res.startedAt ); // Timestamp in the name: dd-MM-yyyy_HHmmss
             String finalName = "cms_" + stamp + ".zip"; // Name after verification
             partial = new File( dir, finalName + FileUtil.PARTIAL_SUFFIX );
             Log.info( "Zipping " + files.size() + " files (" + FileUtil.human( totalBytes ) + ") from " + source + " to " + partial );
